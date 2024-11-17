@@ -52,11 +52,6 @@ int secondary(int x)
     printf("Arrays Mem Layout (T1b):\n");
 
     /* task 1 b here */
-    // int iarray[3];
-    // float farray[3];
-    // double darray[3];
-    // char carray[3];
-
     printf("Arrays Mem Layout (T1b):\n");
     printf("- Address of iarray: %p\n", (void *)iarray);
     printf("- Address of iarray + 1: %p\n", (void *)(iarray + 1));
@@ -69,21 +64,20 @@ int secondary(int x)
     printf("Pointers and arrays (T1d): \n");
 
     /* task 1 d here */
-    // Task 1d: Pointers and Arrays
     iarray2Ptr = iarray2;
     carray2Ptr = carray2;
     for (int i = 0; i < 3; i++)
     {
-        printf("iarray2[%d]: %d (using pointer: %d)\n", i, iarray2[i], *(iarray2Ptr + i));
+        printf("iarray2[%d]: %d (pointer: %d)\n", i, iarray2[i], *(iarray2Ptr + i));
     }
 
     for (int i = 0; i < 3; i++)
     {
-        printf("carray2[%d]: %c (using pointer: %c)\n", i, carray2[i], *(carray2Ptr + i));
+        printf("carray2[%d]: %c (pointer: %c)\n", i, carray2[i], *(carray2Ptr + i));
     }
 
     int *p;
-    printf("\nUninitialized pointer p value: %p\n", p);
+    printf("\n Uninitialized pointer p: %p\n", p);
     return 0;
 }
 

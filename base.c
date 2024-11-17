@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "base.h"
+
 
 char *map(char *array, int array_length, char (*f)(char))
 {
@@ -86,7 +88,7 @@ int main(int argc, char **argv)
     char *arr2 = map(arr1, length, print_ascii_value);
     free(arr2);
 
-    int base_len = 5;
+    int base_len = 5;   
     char arr[base_len]; 
 
     // Reading characters using my_get
