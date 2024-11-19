@@ -1,13 +1,12 @@
 all: menu
 
-menu: menu.o ../base.o
-	gcc -m32 -g -Wall -o menu menu.o ../base.o
+menu: menu.o
+	gcc -m32 -g -Wall  -o menu menu.o
 
-menu.o: menu.c ../base.h
-	gcc -m32 -g -Wall -c menu.c -o menu.o -I ..
+menu.o: menu.c
+	gcc -m32 -g -Wall  -c -o menu.o menu.c
 
-../base.o: ../base.c ../base.h
-	gcc -m32 -g -Wall -c ../base.c -o ../base.o
+.PHONY: clean
 
 clean:
-	rm -f *.o ../base.o menu
+	rm -f *.o menu

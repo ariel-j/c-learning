@@ -15,6 +15,18 @@ int main()
 }
 // gcc -m32 -g -Wall -Wno-uninitialized -o menu  menu.c
 
+
+
+
+
+
+
+
+
+
+
+
+
 //  while (1)
 //     {
 //         printf("Select function from the menu:\n");
