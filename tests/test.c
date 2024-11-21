@@ -10,7 +10,7 @@ int key_position = 0;
 int error_flag = 0;
 
 // Check that c is either a digit or lowercase letter or uppercase letter
-int should_encode(char c){
+int can_encode(char c){
     return ((c >= '0' && c <= '9') ||
         (c >= 'a' && c <= 'z') ||
         (c >= 'A' && c <= 'Z'));
@@ -41,7 +41,7 @@ char encode (char c){
     shift = encoding_key[key_position] - '0'; // from char to integer
     key_position = encoding_key[key_position + 1] ? key_position + 1 : 0;
     shift = (is_add) ? shift : -shift;
-    c = (should_encode(c)) ? wrap_around(c,shift) : c;
+    c = (can_encode(c)) ? wrap_around(c,shift) : c;
     return c;
 }
 
@@ -85,7 +85,8 @@ void parse_args(int argc, char **argv){
                 return;
             }
         }
-        else if(debug_mode){                        // DEBUG MODES: if you want to see the above in debug -> remove the else in the beginning of this line. :)
+        else if(debug_mode){                        
+            // DEBUG MODES: if you want to see the above in debug -> remove the else in the beginning of this line. :)
             fprintf(stderr,"%s\n", argv[i]);
         }
     }
