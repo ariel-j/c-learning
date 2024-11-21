@@ -45,7 +45,11 @@ char encode(char c) {
     char value = encoding_key[key_index] - '0';
     key_index = encoding_key[key_index + 1] ? key_index + 1 : 0;;
     value = (addition) ? value : -value;   
-    return (can_encode(c)) ? shift_and_warp(c,value) : c;
+   if (!can_encode(c)) {
+        fprintf(stderr, "%c isn't allowed to encode, enter only numbers or letters\n", c);
+        return c;
+    }
+    return shift_and_warp(c, value);;
 }
 
 void print_debug_info(int argc, char *argv[]) {
