@@ -102,7 +102,6 @@ static cmdLine *parseSingleCmdLine(const char *strLine)
         ((char**)pCmdLine->arguments)[pCmdLine->argCount++] = strClone(result);
         result = strtok ( NULL, delimiter);
     }
-
     FREE(line);
     return pCmdLine;
 }
