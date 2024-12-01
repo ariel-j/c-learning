@@ -9,8 +9,7 @@
 #include <fcntl.h>
 
 #define INPUT_BUFFER_SIZE 2048
-
-// Function to display the prompt
+    
 void display_prompt() {
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
@@ -21,27 +20,23 @@ void display_prompt() {
     }
 }
 
-// Function to read user input
 char* read_input() {
     static char input[INPUT_BUFFER_SIZE];
     if (fgets(input, INPUT_BUFFER_SIZE, stdin) == NULL) {
         if (feof(stdin)) {
             // Handle EOF (Ctrl+D)
             printf("\nEnd of input (EOF) detected. Exiting...\n");
-            exit(0); // Exit the shell on EOF (Ctrl+D)
+            exit(0); 
         } else {
             perror("Error reading input");
-            return NULL;  // Return NULL if reading fails
+            return NULL;  /
         }
     }
-    // Remove trailing newline character
     input[strcspn(input, "\n")] = '\0';
     return input;
 }
 
-// Handles input and output redirection
 void handle_redirection(cmdLine *pCmdLine) {
-    // Input redirection
     if (pCmdLine->inputRedirect) {
         int inputFd = open(pCmdLine->inputRedirect, O_RDONLY);
         if (inputFd == -1) {
@@ -52,7 +47,6 @@ void handle_redirection(cmdLine *pCmdLine) {
         close(inputFd);
     }
 
-    // Output redirection
     if (pCmdLine->outputRedirect) {
         int outputFd = open(pCmdLine->outputRedirect, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (outputFd == -1) {
@@ -66,9 +60,7 @@ void handle_redirection(cmdLine *pCmdLine) {
 
 // Executes the child process
 void run_child_process(cmdLine *pCmdLine) {
-    // Handle input/output redirection
     handle_redirection(pCmdLine);
-
     // Execute the command
     execvp(pCmdLine->arguments[0], pCmdLine->arguments);
     perror("execvp failed");
@@ -86,7 +78,6 @@ void run_parent_process(pid_t pid, int blocking) {
     }
 }
 
-// Main execute function
 void execute(cmdLine *pCmdLine) {
     pid_t pid = fork();
     if (pid == -1) {
@@ -121,21 +112,18 @@ int main() {
     cmdLine *parsedLine;
 
     while (1) {
-        // Display the prompt
         display_prompt();
-
-        // Read user input
         input = read_input();
         if (!input) continue;  // Retry loop if input reading fails
 
         // Parse the input
         parsedLine = parseCmdLines(input);
-        if (!parsedLine) continue;  // Skip if input is empty or invalid
+        if (!parsedLine) continue;  
 
         // Handle "quit" command
         if (strcmp(parsedLine->arguments[0], "quit") == 0) {
             cleanup_and_exit(parsedLine);
-            break; // Exit the shell
+            break; 
         }
 
         // Handle "cd" command
@@ -144,11 +132,7 @@ int main() {
             cleanup_and_exit(parsedLine);
             continue; // Skip execution for "cd"
         }
-
-        // Execute the command
         execute(parsedLine);
-
-        // Free parsed command resources
         cleanup_and_exit(parsedLine);
     }
 
