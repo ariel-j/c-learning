@@ -53,4 +53,4 @@ fi
 rm -f test_input.txt test_output.txt output.log
 
 
-#chmod +x test_myshell.sh
+#to compilr: chmod +x test_myshell.sh
