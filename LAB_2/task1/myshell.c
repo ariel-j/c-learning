@@ -16,7 +16,6 @@ void display_prompt() {
         printf("%s> ", cwd);  // Show current working directory
     } else {
         perror("getcwd failed");
-        exit(EXIT_FAILURE);
     }
 }
 
@@ -29,7 +28,7 @@ char* read_input() {
             exit(0); 
         } else {
             perror("Error reading input");
-            return NULL;  /
+            return NULL;  
         }
     }
     input[strcspn(input, "\n")] = '\0';
