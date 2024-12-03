@@ -1,10 +1,10 @@
 all:myshell looper mypipe
 
-myshell:	LineParser.o	task2.o
-	gcc	-g	-m32	-Wall	 -o	myshell task2.o LineParser.o
+myshell:	LineParser.o	myshell.o
+	gcc	-g	-m32	-Wall	 -o	myshell myshell.o LineParser.o
 
-task2.o:	task2.c	LineParser.h
-	gcc	-g	-m32	-Wall	 -c	-o task2.o task2.c
+myshell.o:	myshell.c	LineParser.h
+	gcc	-g	-m32	-Wall	 -c	-o myshell.o myshell.c
 
 
 looper: looper.o
@@ -26,4 +26,4 @@ mypipe.o: mypipe.c
 .PHONY: clean
 
 clean:
-	rm -f *.o looper task2
+	rm -f *.o looper myshell
