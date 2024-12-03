@@ -11,6 +11,7 @@
 #include <errno.h>
 
 #define INPUT_BUFFER_SIZE 2048
+int debug = 0;
 
 void display_prompt()
 {
@@ -74,26 +75,22 @@ void handle_redirection(cmdLine *pCmdLine)
     }
 }
 
-// Executes the child process
 void run_child_process(cmdLine *pCmdLine)
 {
     handle_redirection(pCmdLine);
-    // Execute the command
-    execvp(pCmdLine->arguments[0], pCmdLine->arguments);
+    if (execvp(pCmdLine->arguments[0], pCmdLine->arguments) == -1) {
     perror("execvp failed");
-    exit(1);
+    _exit(1);
+    }
 }
 
 // Handles parent process behavior (foreground/background execution)
 void run_parent_process(pid_t pid, int blocking)
 {
-    if (blocking)
-    {
-        // Foreground: Wait for child process to complete
+    if (blocking) {
         waitpid(pid, NULL, 0);
     }
-    else
-    {
+    else {
         // Background: Notify user of background process
         printf("Started background process with PID: %d\n", pid);
     }
@@ -134,8 +131,7 @@ void send_signal(int pid, int signal)
 
 void handle_stop_command(cmdLine *pCmdLine)
 {
-    if (pCmdLine->argCount != 2)
-    {
+    if (pCmdLine->argCount != 2) {
         fprintf(stderr, "stop\n");
         return;
     }
@@ -145,8 +141,7 @@ void handle_stop_command(cmdLine *pCmdLine)
 
 void handle_wake_command(cmdLine *pCmdLine)
 {
-    if (pCmdLine->argCount != 2)
-    {
+    if (pCmdLine->argCount != 2) {
         fprintf(stderr, "Usage: wake\n");
         return;
     }
@@ -154,8 +149,7 @@ void handle_wake_command(cmdLine *pCmdLine)
     send_signal(pid, SIGCONT);
 }
 
-void handle_term_command(cmdLine *pCmdLine)
-{
+void handle_term_command(cmdLine *pCmdLine) {
     if (pCmdLine->argCount != 2)
     {
         fprintf(stderr, "Usage: term <process id>\n");
@@ -165,23 +159,25 @@ void handle_term_command(cmdLine *pCmdLine)
     send_signal(pid, SIGINT);
 }
 
-void execute(cmdLine *pCmdLine)
-{
 
+void isDebugMode(int argc, char **argv){
+    for(int i = 1; i < argc; i++){
+        if(strcmp(argv[i],"-d") == 0){
+            debug = 1;
+            break;
+        }
+    }
+}
+void execute(cmdLine *pCmdLine) {
     pid_t pid = fork();
-    if (pid == -1)
-    {
+    if (pid == -1) {
         perror("fork failed");
         exit(1);
     }
-    else if (pid == 0)
-    {
-        // Child process
+    else if (pid == 0) {
         run_child_process(pCmdLine);
     }
-    else
-    {
-        // Parent process
+    else {
         run_parent_process(pid, pCmdLine->blocking);
     }
 }
@@ -191,28 +187,23 @@ int main()
     char *input;
     cmdLine *parsedLine;
 
-    while (1)
-    {
+    while (1) {
         display_prompt();
         input = read_input();
         if (!input)
             continue; // Retry loop if input reading fails
-
-        // Parse the input
         parsedLine = parseCmdLines(input);
         if (!parsedLine)
             continue;
 
         // Handle "quit" command
-        if (strcmp(parsedLine->arguments[0], "quit") == 0)
-        {
+        if (strcmp(parsedLine->arguments[0], "quit") == 0) {
             cleanup_and_exit(parsedLine);
             break;
         }
 
         // Handle "cd" command
-        if (strcmp(parsedLine->arguments[0], "cd") == 0)
-        {
+        if (strcmp(parsedLine->arguments[0], "cd") == 0) {
             handle_cd(parsedLine);
             cleanup_and_exit(parsedLine);
             continue; // Skip execution for "cd"
@@ -230,8 +221,7 @@ int main()
             cleanup_and_exit(parsedLine);
             continue;
         }
-        if (strcmp(parsedLine->arguments[0], "term") == 0)
-        {
+        if (strcmp(parsedLine->arguments[0], "term") == 0) {
             handle_term_command(parsedLine);
             cleanup_and_exit(parsedLine);
             continue;

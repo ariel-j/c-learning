@@ -9,6 +9,7 @@
 #include <fcntl.h>
 
 #define INPUT_BUFFER_SIZE 2048
+int debug = 0;
     
 void display_prompt() {
     char cwd[PATH_MAX];
@@ -77,6 +78,15 @@ void run_parent_process(pid_t pid, int blocking) {
     }
 }
 
+void isDebugMode(int argc, char **argv){
+    for(int i = 1; i < argc; i++){
+        if(strcmp(argv[i],"-d") == 0){
+            debug = 1;
+            break;
+        }
+    }
+}
+
 void execute(cmdLine *pCmdLine) {
     pid_t pid = fork();
     if (pid == -1) {
@@ -107,15 +117,14 @@ void handle_cd(cmdLine *parsedLine) {
 }
 
 int main() {
+    //TODO: add debug mode
     char *input;
     cmdLine *parsedLine;
 
     while (1) {
         display_prompt();
         input = read_input();
-        if (!input) continue;  // Retry loop if input reading fails
-
-        // Parse the input
+        if (!input) continue; 
         parsedLine = parseCmdLines(input);
         if (!parsedLine) continue;  
 
