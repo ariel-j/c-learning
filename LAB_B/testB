@@ -1,0 +1,4 @@
+56 49 52 4C      ; Magic number 'VIRL'
+05 00            ; Signature length (5 bytes, little-endian)
+56 49 52 55 53 00 00 00 00 00 00 00 00 00 00 00  ; Name: "VIRUS" (16 bytes)
+31 32 33 34 35    ; Signature (5 bytes)
