@@ -108,12 +108,6 @@ int main(int argc, char* argv[]) {
  
     unsigned char magic[4];
     fread(magic, sizeof(unsigned char), 4, file); 
-    printf("Magic: %02X %02X %02X %02X\n", magic[0], magic[1], magic[2], magic[3]);
-    printf("Raw magic bytes: ");
-for (int i = 0; i < 4; i++) {
-    printf("%02X ", magic[i]);
-}
-printf("\n");
     check_magic_number(magic, file); 
     read_and_print_virus_descriptions(file);
     fclose(file);
