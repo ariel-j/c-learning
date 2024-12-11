@@ -2,69 +2,55 @@
 #include <stdlib.h>
 #include <string.h>
 
-char my_get(char c)
-{
+char my_get(char c) {
     return fgetc(stdin);
 }
 
-char cprt(char c)
-{
-    if (c >= 0x20 && c <= 0x7E)
-    {
+char cprt(char c) {
+    if (c >= 0x20 && c <= 0x7E)     {
         printf("%c\n", c);
     }
-    else
-    {
+    else     {
         printf(".\n");
     }
     return c;
 }
 
-char encrypt(char c)
-{
-    if (c >= 0x21 && c <= 0x7F)
-    {
+char encrypt(char c) {
+    if (c >= 0x21 && c <= 0x7F) {
         return c + 1;
     }
     return c;
 }
 
-char decrypt(char c)
-{
-    if (c >= 0x21 && c <= 0x7F)
-    {
+char decrypt(char c) {
+    if (c >= 0x21 && c <= 0x7F) {
         return c - 1;
     }
     return c;
 }
 
-char xprt(char c)
-{
+char xprt(char c) {
     printf("%x\n", c);
     return c;
 }
 
-char dprt(char c)
-{
+char dprt(char c) {
     printf("%d\n", c);
     return c;
 }
 
-struct fun_desc
-{
+struct fun_desc {
     char *name;
     char (*fun)(char);
 };
 
-char *map(char *array, int array_length, char (*f)(char))
-{
+char *map(char *array, int array_length, char (*f)(char)) {
     char *mapped_array = malloc(array_length * sizeof(char));
-    if (!mapped_array)
-    {
+    if (!mapped_array)     {
         perror("Failed to alocate memory");
     }
-    for (int i = 0; i < array_length; i++)
-    {
+    for (int i = 0; i < array_length; i++)     {
         mapped_array[i] = f(array[i]);
     }
     return mapped_array;

@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include "LinkedList.h"
+
 
 typedef struct virus {
     unsigned short SigSize;
@@ -8,14 +11,35 @@ typedef struct virus {
 } virus;
 
 
+struct fun_desc {
+    char *name;
+    char (*fun)(link **);
+};
+
 typedef struct link {
     struct link *nextVirus;
     virus *vir;
 } link;
 
+void print_signatures(link *virus_list) {
+    if (virus_list == NULL) {
+        printf("No signatures loaded.\n");
+        return;
+    }
+    list_print(virus_list, stdout);
+}
+
+void detect_viruses() {
+    printf("Not implemented\n");
+}
+
+void fix_file() {
+    printf("Not implemented\n");
+}
+
 void list_print(link *virus_list, FILE *output) {
     while (virus_list != NULL) {
-        printVirus(virus_list->vir, output);  // Assuming `printVirus` is implemented
+        printVirus(virus_list->vir, output); 
         fprintf(output, "\n");
         virus_list = virus_list->nextVirus;
     }
@@ -61,10 +85,6 @@ void list_free(link *virus_list) {
 }
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 void load_signatures(link **virus_list) {
     char filename[256];
     printf("Enter signature file name: ");
@@ -86,57 +106,62 @@ void load_signatures(link **virus_list) {
     printf("Signatures loaded.\n");
 }
 
-void print_signatures(link *virus_list) {
-    if (virus_list == NULL) {
-        printf("No signatures loaded.\n");
-        return;
+
+struct fun_desc menu[] = {
+    {"Load signatures", load_signatures},
+    {"Print signatures", (void (*)(link **))print_signatures},
+    {"Detect viruses", (void (*)(link **))detect_viruses},
+    {"Fix file", (void (*)(link **))fix_file},
+    {"Quit", (void (*)(link **))list_free},
+    {NULL, NULL},
+};
+
+
+void print_menu(struct fun_desc *menu)
+{
+    printf("Select a function from 0-4:\n");
+    for (int i = 0; menu[i].name != NULL; i++)
+    {
+        printf("%d) %s\n", i, menu[i].name);
     }
-    list_print(virus_list, stdout);
 }
 
-void detect_viruses() {
-    printf("Not implemented\n");
+void handle_choice(int choice, link **virus_list) {
+    switch (choice) {
+        case 1:
+            load_signatures(virus_list);
+            break;
+        case 2:
+            print_signatures(*virus_list);
+            break;
+        case 3:
+            detect_viruses();
+            break;
+        case 4:
+            fix_file();
+            break;
+        case 5:
+            list_free(*virus_list);
+            exit(0);
+        default:
+            printf("Invalid choice, try again.\n");
+    }
 }
 
-void fix_file() {
-    printf("Not implemented\n");
-}
 
 int main() {
     link *virus_list = NULL;
     int choice;
 
     while (1) {
-        printf("1) Load signatures\n");
-        printf("2) Print signatures\n");
-        printf("3) Detect viruses\n");
-        printf("4) Fix file\n");
-        printf("5) Quit\n");
-        printf("Enter choice: ");
-
+        print_menu(menu);
         char input[10];
         fgets(input, sizeof(input), stdin);
         sscanf(input, "%d", &choice);
-
-        switch (choice) {
-            case 1:
-                load_signatures(&virus_list);
-                break;
-            case 2:
-                print_signatures(virus_list);
-                break;
-            case 3:
-                detect_viruses();
-                break;
-            case 4:
-                fix_file();
-                break;
-            case 5:
-                list_free(virus_list);
-                return 0;
-            default:
-                printf("Invalid choice, try again.\n");
-        }
+        handle_choice(choice, &virus_list);
+        
     }
 }
+
+
 
