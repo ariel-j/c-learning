@@ -1,5 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+
+int LittleEndian = 0; 
+char *fileName = NULL;
 
 //struts
 typedef struct virus {
@@ -8,15 +13,32 @@ typedef struct virus {
     unsigned char* sig;
 } virus;
 
-struct fun_desc {
-    char *name;
-    char (*fun)(link **);
-};
-
 typedef struct link {
     struct link *nextVirus;
     virus *vir;
 } link;
+
+struct fun_desc {
+    char *name;
+    void (*fun)(link **);
+};
+
+
+//declaretins
+void print_menu(struct fun_desc *menu);
+void load_signatures(link **virus_list);
+void list_free(link *virus_list);
+link* list_append(link *virus_list, virus *data);
+void list_print(link *virus_list, FILE *output);
+void fix_file();
+void print_signatures(link *virus_list);
+void read_and_print_virus_descriptions(FILE* file);
+void check_magic_number (char magic[], FILE* file);
+virus* readVirus(FILE* file);
+int readFixedSizeString(char* buffer, size_t size, FILE* file);
+unsigned char* readSignature(unsigned short size, FILE* file);
+virus* allocateVirus();
+
 
 //virusDetector
 
@@ -167,26 +189,56 @@ void list_free(link *virus_list) {
     }
 }
 
+void verifying_magic_number (FILE *file) {
+    char magicNumber[5] = {0};
+    if (fread(magicNumber, 1, 4, file) != 4) {
+        fprintf(stderr, "Error with magic number\n");
+        fclose(file);
+        return;
+    }
+
+    LittleEndian = (strcmp(magicNumber, "VIRL") == 0);
+    if (!LittleEndian && strcmp(magicNumber, "VIRB") != 0) {
+        printf("Invalid magic number: %s\n", magicNumber);
+        fclose(file);
+        return;
+    }
+    printf("Magic number verified: %s\n", magicNumber);
+
+}
+
+
+void uploading_file(FILE *file, link **virus_list){
+    list_free(*virus_list);
+    *virus_list = NULL;
+    virus *v;
+    while ((v = readVirus(file)) != NULL) {
+        *virus_list = list_append(*virus_list, v);
+    }
+    fclose(file);
+    printf("Signatures loaded successfully.\n");
+}
+
+
 void load_signatures(link **virus_list) {
     char filename[256];
     printf("Enter signature file name: ");
-    fgets(filename, sizeof(filename), stdin);
-    filename[strcspn(filename, "\n")] = 0;  // Remove newline
+    if (fgets(filename, sizeof(filename), stdin) == NULL) {
+        printf("Failed to read file name.\n");
+        return;
+    }
 
+    filename[strcspn(filename, "\n")] = 0;  
     FILE *file = fopen(filename, "rb");
     if (!file) {
         perror("Error opening file");
         return;
     }
-
     virus *v;
-    while ((v = readVirus(file)) != NULL) {
-        *virus_list = list_append(*virus_list, v);
+    verifying_magic_number(file);
+    uploading_file(file, virus_list);
+    
     }
-
-    fclose(file);
-    printf("Signatures loaded.\n");
-}
 
 
 //menu
@@ -199,13 +251,12 @@ struct fun_desc menu[] = {
     {NULL, NULL},
 };
 
-
 void print_menu(struct fun_desc *menu)
 {
-    printf("Select a function from 0-4:\n");
+    printf("Select a function from 1-5:\n");
     for (int i = 0; menu[i].name != NULL; i++)
     {
-        printf("%d) %s\n", i, menu[i].name);
+        printf("%d) %s\n", i+1, menu[i].name);
     }
 }
 
@@ -232,8 +283,7 @@ void handle_choice(int choice, link **virus_list) {
 }
 
 
-int main(int argc, char* argv[]) {
-        
+int main(int argc, char* argv[]) {   
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <signatures_file>\n", argv[0]);
         return 1;
@@ -244,11 +294,29 @@ int main(int argc, char* argv[]) {
         perror("Error opening file");
         return 1;
     }
- 
-    unsigned char magic[4];
-    fread(magic, sizeof(unsigned char), 4, file); 
-    check_magic_number(magic, file); 
-    read_and_print_virus_descriptions(file);
-    fclose(file);
+    char input[100];
+    link *virus_list = NULL;
+    fileName = argv[1];
+    int userChoise;
+    while (1) {
+            print_menu(menu);
+            if (fgets(input, sizeof(input), stdin) == NULL) break;
+            sscanf(input, "%d", &userChoise);
+            if (userChoise < 0 || userChoise >= sizeof(menu)){
+                printf("not within bounds\n");
+                exit(0);
+                }
+            printf("within bounds\n");
+            printf("%d \n", userChoise);
+            handle_choice(userChoise, &virus_list);   
+        }
+
+    list_free(virus_list);
     return 0;
+    // unsigned char magic[4];
+    // fread(magic, sizeof(unsigned char), 4, file); 
+    // check_magic_number(magic, file); 
+    // read_and_print_virus_descriptions(file);
+    // fclose(file);
+    // return 0;
 }
