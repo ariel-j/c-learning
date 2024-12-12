@@ -82,12 +82,18 @@ virus* readVirus(FILE* file) {
     virus* v = allocateVirus();
     if (!readUnsignedShort(&v->SigSize, file)) {
         free(v);
-        return NULL;  // EOF or read error
+        return NULL;  
     }
+
     if (!readFixedSizeString(v->virusName, 16, file)) {
         free(v);
         return NULL;  
     }
+
+    if(!LittleEndian) {
+        v->SigSize =(v->SigSize >> 8) | (v -> SigSize << 8);
+    }
+
     v->sig = readSignature(v->SigSize, file);
     if (!v->sig) {
         free(v);
@@ -116,8 +122,10 @@ void check_magic_number (char magic[], FILE* file) {
     printf("%c%c%c%c\n", magic[0], magic[1], magic[2], magic[3]);
     if (magic[0] == 0x56 && magic[1] == 0x49 && magic[2] == 0x52 && magic[3] == 0x4C) {
         printf("Little-endian file detected.\n");
+        LittleEndian = 1;
     } else if (magic[0] == 0x56 && magic[1] == 0x49 && magic[2] == 0x52 && magic[3] == 0x42) {
         printf("Big-endian file detected.\n");
+        LittleEndian =0;
     } else {
         fprintf(stderr, "Invalid magic number.\n");
         fclose(file);
