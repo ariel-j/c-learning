@@ -128,15 +128,5 @@ Fix an infected file:
 Enter file name to fix: infected_file.bin
 ```
 
-## Submission Instructions
-Submit the following files:
-1. `AntiVirus.c`: The main C source file.
-2. `Makefile`: To compile the program.
-
-Package these files into a zip archive named `{YOUR_ID}.zip`:
-```bash
-zip {YOUR_ID}.zip AntiVirus.c Makefile
-```
-
 Test the archive by extracting and running the program before submission.
 
