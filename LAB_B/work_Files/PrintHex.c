@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define CHUNK_SIZE 16 // Number of bytes to read at a time
-
 void PrintHex(unsigned char *buffer, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         printf("%02X ", buffer[i]); // Print each byte as a two-character hexadecimal
@@ -24,14 +22,13 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    unsigned char buffer[CHUNK_SIZE]; // Buffer to hold file data
+    unsigned char buffer[16]; // Buffer to hold file data
     size_t bytesRead;
 
     // Read file in chunks
-    while ((bytesRead = fread(buffer, 1, CHUNK_SIZE, file)) > 0) {
+    while ((bytesRead = fread(buffer, 1, 16, file)) > 0) {
         PrintHex(buffer, bytesRead); // Print the read bytes in hexadecimal
     }
-
     // Close the file
     fclose(file);
     exit(0);
