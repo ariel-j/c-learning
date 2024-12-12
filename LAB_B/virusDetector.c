@@ -40,8 +40,6 @@ unsigned char* readSignature(unsigned short size, FILE* file);
 virus* allocateVirus();
 void neutralize_virus(char *fileName, int signatureOffset);
 
-
-
 //virusDetector
 
 virus* allocateVirus() {
