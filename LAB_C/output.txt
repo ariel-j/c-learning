@@ -1,0 +1,2 @@
+-rw-r--r-- 1 root root  2843 Dec 16 21:06 mypipeline.c
+-rw-r--r-- 1 root root     0 Dec 17 17:23 output.txt
