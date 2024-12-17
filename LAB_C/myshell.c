@@ -13,6 +13,50 @@
 
 int debug = 0;
 
+
+/** 
+ * functions to hundle backround processes
+ * to use need to finish modifiying execute, checkCommand, main acoordenlly 
+ * #TODO:  if there is time
+**/
+#define MAX_JOBS 100
+typedef struct {
+    int pid;
+    char command[PATH_MAX];
+} job;
+
+job job_list[MAX_JOBS];
+int job_count = 0;
+
+void addJob(int pid, const char *command) {
+    if (job_count < MAX_JOBS) {
+        job_list[job_count].pid = pid;
+        strncpy(job_list[job_count].command, command, PATH_MAX);
+        job_count++;
+    } else {
+        fprintf(stderr, "Job list full, cannot add more jobs\n");
+    }
+}
+
+void removeJob(int pid) {
+    for (int i = 0; i < job_count; i++) {
+        if (job_list[i].pid == pid) {
+            for (int j = i; j < job_count - 1; j++) {
+                job_list[j] = job_list[j + 1];
+            }
+            job_count--;
+            break;
+        }
+    }
+}
+
+void listJobs() {
+    for (int i = 0; i < job_count; i++) {
+        printf("[%d] %d %s\n", i + 1, job_list[i].pid, job_list[i].command);
+    }
+}
+
+//shell functions
 void displayPrompt(){
     char cwd[PATH_MAX];
     if(getcwd(cwd,sizeof(cwd))!= NULL){
@@ -29,6 +73,16 @@ void readUserInput(char input[], int size){
 
 cmdLine * parseInput(char input[]){
     return parseCmdLines(input);
+}
+
+//handler
+
+void sigchld_handler(int sig) {
+    int status;
+    pid_t pid;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        removeJob(pid);
+    }
 }
 
 void handleInputRedirect(cmdLine *pCmdLine){
@@ -51,6 +105,7 @@ void handleOutputRedirect(cmdLine *pCmdLine){
     fclose(output_file);
 }
 
+//execute
 void executePipe(cmdLine *pCmdLine) {
     cmdLine *leftCmd = pCmdLine;
     cmdLine *rightCmd = pCmdLine->next;
@@ -239,6 +294,7 @@ void checkCD (cmdLine* command){
         }
 }
 
+//procecess checkx
 void stop_process(int pid) {
     if(kill(pid, SIGSTOP) == -1)
         perror("stop error");
