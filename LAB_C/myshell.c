@@ -11,7 +11,24 @@
 #include <fcntl.h>
 #include <errno.h>
 
+//process manager
+    #define TERMINATED  -1
+    #define RUNNING 1
+    #define SUSPENDED 0
+
+     typedef struct process{
+        cmdLine* cmd;                         /* the parsed command line*/
+        pid_t pid; 		                  /* the process id that is running the command*/
+        int status;                           /* status of the process: RUNNING/SUSPENDED/TERMINATED */
+        struct process *next;	                  /* next process in chain */
+    } process;
+
+    void addProcess(process** process_list, cmdLine* cmd, pid_t pid);
+    void removeProcess(pid_t pid);  // Declare removeProcess
+
+
 int debug = 0;
+process* process_list;
 
 
 /** 
@@ -20,41 +37,6 @@ int debug = 0;
  * #TODO:  if there is time
 **/
 #define MAX_JOBS 100
-typedef struct {
-    int pid;
-    char command[PATH_MAX];
-} job;
-
-job job_list[MAX_JOBS];
-int job_count = 0;
-
-void addJob(int pid, const char *command) {
-    if (job_count < MAX_JOBS) {
-        job_list[job_count].pid = pid;
-        strncpy(job_list[job_count].command, command, PATH_MAX);
-        job_count++;
-    } else {
-        fprintf(stderr, "Job list full, cannot add more jobs\n");
-    }
-}
-
-void removeJob(int pid) {
-    for (int i = 0; i < job_count; i++) {
-        if (job_list[i].pid == pid) {
-            for (int j = i; j < job_count - 1; j++) {
-                job_list[j] = job_list[j + 1];
-            }
-            job_count--;
-            break;
-        }
-    }
-}
-
-void listJobs() {
-    for (int i = 0; i < job_count; i++) {
-        printf("[%d] %d %s\n", i + 1, job_list[i].pid, job_list[i].command);
-    }
-}
 
 //shell functions
 void displayPrompt(){
@@ -76,14 +58,26 @@ cmdLine * parseInput(char input[]){
 }
 
 //handler
-
 void sigchld_handler(int sig) {
     int status;
     pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        removeJob(pid);
+        removeProcess(pid);  // Remove process from the job list
+        process* current = process_list; // Update process list status to terminated
+        while (current != NULL) {
+            if (current->pid == pid) {
+                if (WIFEXITED(status)) {
+                    current->status = TERMINATED;  // Mark the process as terminated
+                } else if (WIFSIGNALED(status)) {
+                    current->status = TERMINATED;  // Mark as terminated if killed by a signal
+                }
+                break;
+            }
+            current = current->next;
+        }
     }
 }
+
 
 void handleInputRedirect(cmdLine *pCmdLine){
     FILE *input_file = fopen(pCmdLine->inputRedirect, "r");
@@ -254,6 +248,9 @@ void execute(cmdLine *pCmdLine){
         }
         
     } else {
+        addProcess(&process_list, pCmdLine, pid);  // Add to the process list
+        
+
         if (pCmdLine->blocking) { 
             if (debug) {
                 fprintf(stderr, "PID: %d\n", pid);
@@ -294,7 +291,7 @@ void checkCD (cmdLine* command){
         }
 }
 
-//procecess checkx
+//procecess checks
 void stop_process(int pid) {
     if(kill(pid, SIGSTOP) == -1)
         perror("stop error");
@@ -337,25 +334,109 @@ int checkCommand(cmdLine* command){
     return 0;
 }
 
-int main(int argc, char **argv)
-{
-    signal(SIGINT, SIG_IGN);
-    int size = 2048;
-    char input[size];
-    cmdLine* command;
-    while (1)
-    {
-        displayPrompt();
-        readUserInput(input,size);
-        isDebugMode(argc,argv);
-        if(input[0] == '\n') continue; // skip empty input.
-        command = parseInput(input);
-        if(command == NULL) continue; // skip null commands.
-        if(checkCommand(command)) continue;
-        execute(command);
-        freeCmdLines(command);
-        sleep(1);
+
+void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
+    process* new_process = (process*) malloc(sizeof(process));
+    // Initialize the new process fields
+    new_process->cmd = cmd;  // Parsed command line
+    new_process->pid = pid;  // Process ID
+    new_process->status = RUNNING;  // Initially, the process is running
+    new_process->next = *process_list;  // New process points to the current first node
+    // Update the process list to point to the new process
+    *process_list = new_process;
+}
+
+void printProcessList(process** process_list) {
+    // Print header
+    printf("\nPID          Command      STATUS\n");
+
+    // Iterate through the process list
+    process* current = *process_list;
+    int index = 0;
+    while (current != NULL) {
+        // Print process details
+        printf("%-12d %-12s %-12s\n", current->pid, current->cmd->arguments[0],
+               current->status == RUNNING ? "Running" :
+               (current->status == SUSPENDED ? "Suspended" : "Terminated"));
+        current = current->next;
+        index++;
+    }
+}
+
+void removeProcess(pid_t pid) {
+    process* current = process_list;
+    process* previous = NULL;
+
+    while (current != NULL) {
+        if (current->pid == pid) {
+            if (previous == NULL) {
+                process_list = current->next;
+            } else {
+                previous->next = current->next;
+            }
+            free(current); 
+            return;
+        }
+        previous = current;
+        current = current->next;
+    }
+    fprintf(stderr, "Error: No process found with pid %d\n", pid);
+}
+
+
+//main helper functions: 
+void initializeProcessList(process** process_list) {
+    *process_list = NULL;  // Initialize an empty process list
+}
+
+void handleProcsCommand(process* process_list) {
+    printProcessList(&process_list);  // Print the list of processes
+}
+
+int handleUserInput(char input[], cmdLine** command, int argc, char** argv, process** process_list) {
+    readUserInput(input, 2048);  
+    isDebugMode(argc, argv);     
+    if(input[0] == '\n') return 0;  // Skip empty input
+
+    *command = parseInput(input);
+    if (*command == NULL) return 0;  // Skip null commands
+
+    if (strcmp((*command)->arguments[0], "procs") == 0) {
+        handleProcsCommand(*process_list);
+        freeCmdLines(*command);
+        return 1;  
     }
 
+    return 0;  
+}
+
+void executeCommand(cmdLine* command, process** process_list) {
+    if (checkCommand(command)) {
+        freeCmdLines(command);
+    } else {
+        execute(command);  
+        freeCmdLines(command);  
+    }
+}
+
+
+int main(int argc, char **argv) {
+    signal(SIGINT, SIG_IGN);
+    signal(SIGCHLD, sigchld_handler);  // Set up SIGCHLD handler to reap child processes
+   
+    char input[2048];
+    cmdLine* command;
+    process_list = NULL;  // Declare the process list
+    initializeProcessList(&process_list);  
+
+    while (1) {
+        displayPrompt();
+        if (handleUserInput(input, &command, argc, argv, &process_list)) {
+            continue;  // Skip command execution if "procs" command was processed
+        }
+        executeCommand(command, &process_list);
+        sleep(1);  // Sleep to avoid CPU overload
+    }
     return 0;
 }
+
