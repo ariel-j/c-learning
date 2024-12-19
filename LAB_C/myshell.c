@@ -11,49 +11,184 @@
 #include <fcntl.h>
 #include <errno.h>
 
-int debug = 0;
+//process manager
+    #define TERMINATED  -1
+    #define RUNNING 1
+    #define SUSPENDED 0
+    #define HISTLEN 10
+    #define MAX_JOBS 100
+    int debug = 0;
+     typedef struct process{
+        cmdLine* cmd;                         /* the parsed command line*/
+        pid_t pid; 		                  /* the process id that is running the command*/
+        int status;                           /* status of the process: RUNNING/SUSPENDED/TERMINATED */
+        struct process *next;	                  /* next process in chain */
+    } process;
+    process* process_list;
 
+    void addProcess(process** process_list, cmdLine* cmd, pid_t pid);
+    void removeProcess(pid_t pid);  
+    void updateProcessList(process **process_list);
+    void freeProcessList(process* process_list);
+    void updateProcessStatus(process* process_list, int pid, int status);
+    void printProcessList(process** process_list);
+    void checkProcs(cmdLine* command);
 
-/** 
- * functions to hundle backround processes
- * to use need to finish modifiying execute, checkCommand, main acoordenlly 
- * #TODO:  if there is time
-**/
-#define MAX_JOBS 100
-typedef struct {
-    int pid;
-    char command[PATH_MAX];
-} job;
+// ================ PART 4 ================
+typedef struct history_node {
+    char* command;               
+    struct history_node* next;
+    struct history_node* prev;  
+} history_node;
 
-job job_list[MAX_JOBS];
-int job_count = 0;
+typedef struct history_list {
+    history_node* head;      // oldest command     
+    history_node* tail;           
+    int size;                     
+} history_list;
+history_list * history_global = NULL;
 
-void addJob(int pid, const char *command) {
-    if (job_count < MAX_JOBS) {
-        job_list[job_count].pid = pid;
-        strncpy(job_list[job_count].command, command, PATH_MAX);
-        job_count++;
-    } else {
-        fprintf(stderr, "Job list full, cannot add more jobs\n");
+history_list* init_history() {
+    history_list* hist = (history_list*)malloc(sizeof(history_list));
+    hist->head = NULL;
+    hist->tail = NULL;
+    hist->size = 0;
+    return hist;
+}
+
+char* copyString(const char* source) {
+    char* copy = (char*)malloc(strlen(source) + 1);  // +1 for null terminator
+    strcpy(copy, source);
+    return copy;
+}
+
+void add_to_empty_history(history_list* hist, history_node* new_node){
+    hist->head = new_node;
+    hist->tail = new_node;
+    hist->size = 1;
+}
+
+void remove_oldest_command(history_list* hist){
+    history_node* old_head = hist->head;
+    hist->head = hist->head->next;
+    hist->head->prev = NULL;  
+    free(old_head->command);
+    free(old_head);
+    hist->size--;
+}
+
+void add_to_non_empty_history(history_list* hist, history_node* new_node){
+    hist->tail->next = new_node;
+    new_node->prev = hist->tail;  
+    hist->tail = new_node;
+    hist->size++;
+    
+    if (hist->size > HISTLEN) {
+        remove_oldest_command(hist);
     }
 }
 
-void removeJob(int pid) {
-    for (int i = 0; i < job_count; i++) {
-        if (job_list[i].pid == pid) {
-            for (int j = i; j < job_count - 1; j++) {
-                job_list[j] = job_list[j + 1];
-            }
-            job_count--;
-            break;
+void add_to_history(history_list* hist, const char* command) {
+    if (!command || command[0] == '\n') return;  
+    history_node* new_node = (history_node*)malloc(sizeof(history_node));
+    new_node->command = copyString(command);
+    new_node->next = NULL;
+    new_node->prev = NULL;       
+    
+    if (hist->size == 0) {
+        add_to_empty_history(hist, new_node);
+        return;
+    }
+    
+    add_to_non_empty_history(hist, new_node);
+}
+
+void print_history(history_list* hist) {
+    history_node* current = hist->head;
+    int index = 1;
+    
+    while (current) {
+        printf("%d  %s", index++, current->command);
+        if (current->command[strlen(current->command)-1] != '\n') {
+            printf("\n");
         }
+        current = current->next;
     }
 }
 
-void listJobs() {
-    for (int i = 0; i < job_count; i++) {
-        printf("[%d] %d %s\n", i + 1, job_list[i].pid, job_list[i].command);
+char* get_command_by_index(history_list* hist, int index) {
+    if (index < 1 || index > hist->size) {
+        return NULL;
     }
+    
+    history_node* current = hist->head;
+    for (int i = 1; i < index; i++) {
+        current = current->next;
+    }
+    return current->command;
+}
+
+char* get_last_command(history_list* hist) {
+    if (!hist->tail) return NULL;
+
+    history_node* current = hist->tail;
+    while (current) {
+        if (strncmp(current->command, "!!", 2) != 0 && 
+            strncmp(current->command, "history", 7) != 0 && 
+            current->command[0] != '!') {
+            return current->command;
+        }
+        current = current->prev;  
+    }
+    return NULL;
+}
+
+void free_history(history_list* hist) {
+    history_node* current = hist->head;
+    while (current) {
+        history_node* next = current->next;
+        free(current->command);
+        free(current);
+        current = next;
+    }
+    free(hist);
+}
+
+int check_last_command(history_list* hist, char* input){
+    char* last_cmd = get_last_command(hist);
+    if (!last_cmd) {
+        printf("No commands in history\n");
+        return 1;
+    }
+    printf("%s", last_cmd);
+    strcpy(input, last_cmd);
+    return 0; 
+}
+
+int check_index_command(history_list* hist, char* input){
+    int index = atoi(input + 1);
+    char* cmd = get_command_by_index(hist, index);
+    if (!cmd) {
+        printf("Invalid history index\n");
+        return 1;
+    }
+    printf("%s", cmd);
+    strcpy(input, cmd);
+    return 0;
+}
+
+int check_history_command(char* input, history_list* hist) {
+    if (strcmp(input, "history\n") == 0) {
+        print_history(hist);
+        return 1;
+    }
+    if (strcmp(input, "!!\n") == 0) {
+        return check_last_command(hist, input);
+    }
+    if (input[0] == '!') {
+        return check_index_command(hist, input);
+    }
+    return 0;
 }
 
 //shell functions
@@ -76,12 +211,23 @@ cmdLine * parseInput(char input[]){
 }
 
 //handler
-
 void sigchld_handler(int sig) {
     int status;
     pid_t pid;
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        removeJob(pid);
+        removeProcess(pid);  // Remove process from the job list
+        process* current = process_list; // Update process list status to terminated
+        while (current != NULL) {
+            if (current->pid == pid) {
+                if (WIFEXITED(status)) {
+                    current->status = TERMINATED;  // Mark the process as terminated
+                } else if (WIFSIGNALED(status)) {
+                    current->status = TERMINATED;  // Mark as terminated if killed by a signal
+                }
+                break;
+            }
+            current = current->next;
+        }
     }
 }
 
@@ -221,51 +367,60 @@ void executePipe(cmdLine *pCmdLine) {
     }
 }
 
+
+void runChildProcess(cmdLine *pCmdLine){
+    if(debug){
+        fprintf(stderr, "PID: %d\n", getpid());
+        fprintf(stderr, "Executing command: %s\n", pCmdLine->arguments[0]);
+    }
+
+    if(pCmdLine->inputRedirect){
+        handleInputRedirect(pCmdLine);
+    }
+
+    if(pCmdLine->outputRedirect){
+        handleOutputRedirect(pCmdLine);
+    }
+
+    if(execvp(pCmdLine->arguments[0],pCmdLine->arguments) == -1){
+        perror("execvp error");
+        _exit(1);
+    }
+}
+
+void runParentProcess(cmdLine *pCmdLine, pid_t pid){
+    if (pCmdLine->blocking) { // wait for child process to finish - & was added to so it's blocking.
+        if (debug) {
+            fprintf(stderr, "PID: %d\n", pid);
+            fprintf(stderr, "Waiting for child process to finish\n");
+        }
+        waitpid(pid, NULL, 0);
+    } else {
+        if (debug) {
+            fprintf(stderr, "PID: %d\n", pid);
+            fprintf(stderr, "Running in background\n");
+        }
+    }
+}
+
 void execute(cmdLine *pCmdLine){
     // Check if this is a pipe command
     if (pCmdLine->next) {
         executePipe(pCmdLine);
-        return;
     }
 
     pid_t pid = fork(); 
     if(pid == -1){ 
-        perror("fork error - failed to create new process");
+        perror("failed to create new process");
         exit(1);
     }
 
     if(pid == 0){
-        if(debug){
-            fprintf(stderr, "PID: %d\n", getpid());
-            fprintf(stderr, "Executing command: %s\n", pCmdLine->arguments[0]);
-        }
-
-        if(pCmdLine->inputRedirect){
-            handleInputRedirect(pCmdLine);
-        }
-
-        if(pCmdLine->outputRedirect){
-            handleOutputRedirect(pCmdLine);
-        }
-
-        if(execvp(pCmdLine->arguments[0],pCmdLine->arguments) == -1){
-            perror("execvp error");
-            _exit(1);
-        }
+       runChildProcess(pCmdLine);
         
     } else {
-        if (pCmdLine->blocking) { 
-            if (debug) {
-                fprintf(stderr, "PID: %d\n", pid);
-                fprintf(stderr, "Waiting for child process to finish\n");
-            }
-            waitpid(pid, NULL, 0);
-        } else {
-            if (debug) {
-                fprintf(stderr, "PID: %d\n", pid);
-                fprintf(stderr, "Running in background\n");
-            }
-        }
+        addProcess(&process_list, pCmdLine, pid);  // Add to the process list
+        runParentProcess(pCmdLine, pid);
     }
 }
 
@@ -279,8 +434,10 @@ void isDebugMode(int argc, char **argv){
 }
 
 void checkQuit(cmdLine* command){
+        freeProcessList(process_list);
+        free_history(history_global);
         freeCmdLines(command);
-        exit(0);
+		exit(0);
 }
 
 void checkCD (cmdLine* command){
@@ -294,20 +451,26 @@ void checkCD (cmdLine* command){
         }
 }
 
-//procecess checkx
+//procecess checks
 void stop_process(int pid) {
     if(kill(pid, SIGSTOP) == -1)
         perror("stop error");
+    else
+        updateProcessStatus(process_list, pid, SUSPENDED);
 }
 
 void wake_process(int pid) {
     if(kill(pid, SIGCONT) == -1)
         perror("wake error");
+    else
+        updateProcessStatus(process_list, pid, RUNNING);
 }
 
 void term_process(int pid) {
     if(kill(pid, SIGINT) == -1)
         perror("term error");
+    else
+        updateProcessStatus(process_list, pid, TERMINATED);
 }
 
 void checkStop(cmdLine* command){
@@ -334,28 +497,187 @@ int checkCommand(cmdLine* command){
     if(strcmp(command->arguments[0], "stop") == 0){checkStop(command); return 1;}
     if(strcmp(command->arguments[0], "wake") == 0){checkWake(command); return 1;}
     if(strcmp(command->arguments[0], "term") == 0){checkTerm(command); return 1;}
+    if(strcmp(command->arguments[0], "procs") == 0){checkProcs(command); return 1;} //Part3A
+
     return 0;
 }
 
-int main(int argc, char **argv)
-{
-    signal(SIGINT, SIG_IGN);
-    int size = 2048;
-    char input[size];
-    cmdLine* command;
-    while (1)
-    {
-        displayPrompt();
-        readUserInput(input,size);
-        isDebugMode(argc,argv);
-        if(input[0] == '\n') continue; // skip empty input.
-        command = parseInput(input);
-        if(command == NULL) continue; // skip null commands.
-        if(checkCommand(command)) continue;
+void checkProcs(cmdLine* command){
+    printProcessList(&process_list);
+}
+
+//process list functions
+void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
+    process* new_process = (process*) malloc(sizeof(process));
+    new_process->cmd = parseCmdLines(cmd->arguments[0]);
+    if (new_process->cmd == NULL) {
+        free(new_process);
+        return;
+    }
+    // Replacing the cmdline with newString
+    for (int i = 1; i < cmd->argCount; i++) {
+        replaceCmdArg(new_process->cmd, i, cmd->arguments[i]);
+    }
+    //printf("%s\t,%s\n","the argument is",new_process->cmd->arguments[0]);
+    new_process->pid = pid;
+    new_process->status = RUNNING;
+    new_process->next = *process_list;
+    *process_list = new_process;
+
+    if (debug) {
+        fprintf(stderr, "DEBUG: Added process PID=%d, Command=%s\n", pid, cmd->arguments[0]);
+    }
+}
+
+void printProcessList(process** process_list) {
+    updateProcessList(process_list);
+    printf("\nPID          Command      STATUS\n");
+    process* current = *process_list;
+    process* prev = NULL;
+    while (current != NULL) {
+        // Print the process information
+        printf("%-12d %-12s %-12s\n",
+               current->pid,
+               current->cmd->arguments[0],
+               current->status == RUNNING ? "Running" :
+               (current->status == SUSPENDED ? "Suspended" : "Terminated"));
+
+        // Check if the process is terminated
+        if (current->status == TERMINATED) {
+            process* to_delete = current;  // Save the node to delete
+            if (prev == NULL) {
+                *process_list = current->next;  // Update head if the first node is deleted
+            } else {
+                prev->next = current->next;  
+            }
+            current = current->next; 
+            freeCmdLines(to_delete->cmd);  
+            free(to_delete);  // Free the process struct
+        } else {
+            prev = current;       
+            current = current->next;  
+        }
+    }
+}
+
+void removeProcess(pid_t pid) {
+    process* current = process_list;
+    process* previous = NULL;
+
+    while (current != NULL) {
+        if (current->pid == pid) {
+            if (previous == NULL) {
+                process_list = current->next;
+            } else {
+                previous->next = current->next;
+            }
+            free(current); 
+            return;
+        }
+        previous = current;
+        current = current->next;
+    }
+    fprintf(stderr, "Error: No process found with pid %d\n", pid);
+}
+
+void freeProcessList(process* process_list) {
+    process* current = process_list;
+    while (current != NULL) {
+        process* next = current->next;  // Store the next process
+        freeCmdLines(current->cmd);    // Free the parsed command line
+        free(current);                 
+        current = next;                
+    }
+}
+
+void updateProcessStateChanged(int status,process* curr){
+    if (WIFSTOPPED(status)) {
+        curr->status = SUSPENDED;
+    } else if (WIFCONTINUED(status)) {
+        curr->status = RUNNING;
+    } else if (WIFEXITED(status) || WIFSIGNALED(status)) {
+        curr->status = TERMINATED;
+    }
+}
+
+void updateProcessList(process **process_list) {
+    if(!process_list || !*process_list) return;
+    process* current = *process_list;
+    process* prev = NULL;
+    while (current) {
+        int status;
+        pid_t result = waitpid(current->pid, &status, WNOHANG);
+        if (result > 0) { // process has changed state
+           updateProcessStateChanged(status,current);
+        }
+        if (current->status == TERMINATED) { // Remove terminated processes
+            process* to_delete = current;
+            if (prev == NULL) {
+                *process_list = current->next; // Update head
+            } else {
+                prev->next = current->next;
+            }
+            current = current->next;
+            freeCmdLines(to_delete->cmd);
+            free(to_delete);
+        } else {
+            prev = current;
+            current = current->next;
+        }
+    }
+}
+
+void updateProcessStatus(process* process_list, int pid, int status) {
+    process* current = process_list;
+    while (current != NULL) {
+        if (current->pid == pid) {
+            current->status = status; 
+            return;
+        }
+        current = current->next;  
+    }
+}
+
+//main helper functions: 
+void handleProcsCommand(process* process_list) {
+    printProcessList(&process_list);  // Print the list of processes
+}
+
+int handleUserInput(char input[], cmdLine** command, int argc, char** argv, process** process_list) {
+    readUserInput(input, 2048);  
+    isDebugMode(argc, argv);     
+    if(input[0] == '\n') return 0;  // Skip empty input
+    if (check_history_command(input, history_global)) return 0;
+    add_to_history(history_global, input);
+    *command = parseInput(input);
+    if (*command == NULL) return 0;  // Skip null commands
+    return 0;  
+}
+
+void executeCommand(cmdLine* command, process** process_list) {
+    if (checkCommand(command)) {
+        freeCmdLines(command);
+    } else {
         execute(command);
         freeCmdLines(command);
-        sleep(1);
     }
-
-    return 0;
 }
+
+int main(int argc, char **argv) {
+    signal(SIGINT, SIG_IGN);
+    char input[2048];
+    cmdLine* command;
+    history_global = init_history();
+    process_list = NULL;  
+
+    while (1) {
+        displayPrompt();
+        if (handleUserInput(input, &command, argc, argv, &process_list)) {
+            continue;  // Skip command execution if "procs" command was processed
+        }
+        executeCommand(command, &process_list);
+        sleep(1);  // Sleep to avoid CPU overload
+    }
+    freeProcessList(process_list);
+    return 0;
+}   
