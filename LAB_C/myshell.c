@@ -15,28 +15,180 @@
     #define TERMINATED  -1
     #define RUNNING 1
     #define SUSPENDED 0
-
+    #define HISTLEN 10
+    #define MAX_JOBS 100
+    int debug = 0;
      typedef struct process{
         cmdLine* cmd;                         /* the parsed command line*/
         pid_t pid; 		                  /* the process id that is running the command*/
         int status;                           /* status of the process: RUNNING/SUSPENDED/TERMINATED */
         struct process *next;	                  /* next process in chain */
     } process;
+    process* process_list;
 
     void addProcess(process** process_list, cmdLine* cmd, pid_t pid);
-    void removeProcess(pid_t pid);  // Declare removeProcess
+    void removeProcess(pid_t pid);  
+    void updateProcessList(process **process_list);
+    void freeProcessList(process* process_list);
+    void updateProcessStatus(process* process_list, int pid, int status);
+    void printProcessList(process** process_list);
 
+// ================ PART 4 ================
+typedef struct history_node {
+    char* command;               
+    struct history_node* next;
+    struct history_node* prev;  
+} history_node;
 
-int debug = 0;
-process* process_list;
+typedef struct history_list {
+    history_node* head;      // oldest command     
+    history_node* tail;           
+    int size;                     
+} history_list;
+history_list * history_global = NULL;
 
+history_list* init_history() {
+    history_list* hist = (history_list*)malloc(sizeof(history_list));
+    hist->head = NULL;
+    hist->tail = NULL;
+    hist->size = 0;
+    return hist;
+}
 
-/** 
- * functions to hundle backround processes
- * to use need to finish modifiying execute, checkCommand, main acoordenlly 
- * #TODO:  if there is time
-**/
-#define MAX_JOBS 100
+char* copyString(const char* source) {
+    char* copy = (char*)malloc(strlen(source) + 1);  // +1 for null terminator
+    strcpy(copy, source);
+    return copy;
+}
+
+void add_to_empty_history(history_list* hist, history_node* new_node){
+    hist->head = new_node;
+    hist->tail = new_node;
+    hist->size = 1;
+}
+
+void remove_oldest_command(history_list* hist){
+    history_node* old_head = hist->head;
+    hist->head = hist->head->next;
+    hist->head->prev = NULL;  
+    free(old_head->command);
+    free(old_head);
+    hist->size--;
+}
+
+void add_to_non_empty_history(history_list* hist, history_node* new_node){
+    hist->tail->next = new_node;
+    new_node->prev = hist->tail;  
+    hist->tail = new_node;
+    hist->size++;
+    
+    if (hist->size > HISTLEN) {
+        remove_oldest_command(hist);
+    }
+}
+
+void add_to_history(history_list* hist, const char* command) {
+    if (!command || command[0] == '\n') return;  
+    history_node* new_node = (history_node*)malloc(sizeof(history_node));
+    new_node->command = copyString(command);
+    new_node->next = NULL;
+    new_node->prev = NULL;       
+    
+    if (hist->size == 0) {
+        add_to_empty_history(hist, new_node);
+        return;
+    }
+    
+    add_to_non_empty_history(hist, new_node);
+}
+
+void print_history(history_list* hist) {
+    history_node* current = hist->head;
+    int index = 1;
+    
+    while (current) {
+        printf("%d  %s", index++, current->command);
+        if (current->command[strlen(current->command)-1] != '\n') {
+            printf("\n");
+        }
+        current = current->next;
+    }
+}
+
+char* get_command_by_index(history_list* hist, int index) {
+    if (index < 1 || index > hist->size) {
+        return NULL;
+    }
+    
+    history_node* current = hist->head;
+    for (int i = 1; i < index; i++) {
+        current = current->next;
+    }
+    return current->command;
+}
+
+char* get_last_command(history_list* hist) {
+    if (!hist->tail) return NULL;
+
+    history_node* current = hist->tail;
+    while (current) {
+        if (strncmp(current->command, "!!", 2) != 0 && 
+            strncmp(current->command, "history", 7) != 0 && 
+            current->command[0] != '!') {
+            return current->command;
+        }
+        current = current->prev;  
+    }
+    return NULL;
+}
+
+void free_history(history_list* hist) {
+    history_node* current = hist->head;
+    while (current) {
+        history_node* next = current->next;
+        free(current->command);
+        free(current);
+        current = next;
+    }
+    free(hist);
+}
+
+int check_last_command(history_list* hist, char* input){
+    char* last_cmd = get_last_command(hist);
+    if (!last_cmd) {
+        printf("No commands in history\n");
+        return 1;
+    }
+    printf("%s", last_cmd);
+    strcpy(input, last_cmd);
+    return 0; 
+}
+
+int check_index_command(history_list* hist, char* input){
+    int index = atoi(input + 1);
+    char* cmd = get_command_by_index(hist, index);
+    if (!cmd) {
+        printf("Invalid history index\n");
+        return 1;
+    }
+    printf("%s", cmd);
+    strcpy(input, cmd);
+    return 0;
+}
+
+int check_history_command(char* input, history_list* hist) {
+    if (strcmp(input, "history\n") == 0) {
+        print_history(hist);
+        return 1;
+    }
+    if (strcmp(input, "!!\n") == 0) {
+        return check_last_command(hist, input);
+    }
+    if (input[0] == '!') {
+        return check_index_command(hist, input);
+    }
+    return 0;
+}
 
 //shell functions
 void displayPrompt(){
@@ -77,7 +229,6 @@ void sigchld_handler(int sig) {
         }
     }
 }
-
 
 void handleInputRedirect(cmdLine *pCmdLine){
     FILE *input_file = fopen(pCmdLine->inputRedirect, "r");
@@ -276,8 +427,10 @@ void isDebugMode(int argc, char **argv){
 }
 
 void checkQuit(cmdLine* command){
+        freeProcessList(process_list);
+        free_history(history_global);
         freeCmdLines(command);
-        exit(0);
+		exit(0);
 }
 
 void checkCD (cmdLine* command){
@@ -295,16 +448,22 @@ void checkCD (cmdLine* command){
 void stop_process(int pid) {
     if(kill(pid, SIGSTOP) == -1)
         perror("stop error");
+    else
+        updateProcessStatus(process_list, pid, SUSPENDED);
 }
 
 void wake_process(int pid) {
     if(kill(pid, SIGCONT) == -1)
         perror("wake error");
+    else
+        updateProcessStatus(process_list, pid, RUNNING);
 }
 
 void term_process(int pid) {
     if(kill(pid, SIGINT) == -1)
         perror("term error");
+    else
+        updateProcessStatus(process_list, pid, TERMINATED);
 }
 
 void checkStop(cmdLine* command){
@@ -334,7 +493,11 @@ int checkCommand(cmdLine* command){
     return 0;
 }
 
+void checkProcs(cmdLine* command){
+    printProcessList(&process_list);
+}
 
+//process list functions
 void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
     process* new_process = (process*) malloc(sizeof(process));
     // Initialize the new process fields
@@ -344,22 +507,39 @@ void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
     new_process->next = *process_list;  // New process points to the current first node
     // Update the process list to point to the new process
     *process_list = new_process;
+    if (debug) {
+        fprintf(stderr, "DEBUG: Added process PID=%d, Command=%s\n", pid, cmd->arguments[0]);
+    }
 }
 
 void printProcessList(process** process_list) {
-    // Print header
+    updateProcessList(process_list);
     printf("\nPID          Command      STATUS\n");
-
-    // Iterate through the process list
     process* current = *process_list;
-    int index = 0;
+    process* prev = NULL;
     while (current != NULL) {
-        // Print process details
-        printf("%-12d %-12s %-12s\n", current->pid, current->cmd->arguments[0],
+        // Print the process information
+        printf("%-12d %-12s %-12s\n",
+               current->pid,
+               current->cmd->arguments[0],
                current->status == RUNNING ? "Running" :
                (current->status == SUSPENDED ? "Suspended" : "Terminated"));
-        current = current->next;
-        index++;
+
+        // Check if the process is terminated
+        if (current->status == TERMINATED) {
+            process* to_delete = current;  // Save the node to delete
+            if (prev == NULL) {
+                *process_list = current->next;  // Update head if the first node is deleted
+            } else {
+                prev->next = current->next;  
+            }
+            current = current->next; 
+            freeCmdLines(to_delete->cmd);  
+            free(to_delete);  // Free the process struct
+        } else {
+            prev = current;       
+            current = current->next;  
+        }
     }
 }
 
@@ -383,6 +563,61 @@ void removeProcess(pid_t pid) {
     fprintf(stderr, "Error: No process found with pid %d\n", pid);
 }
 
+void freeProcessList(process* process_list) {
+    process* current = process_list;
+    while (current != NULL) {
+        process* next = current->next;  // Store the next process
+        freeCmdLines(current->cmd);    // Free the parsed command line
+        free(current);                 
+        current = next;                
+    }
+}
+
+void updateProcessList(process **process_list) {
+    process* current = *process_list;
+    process* prev = NULL;
+
+    while (current != NULL) {
+        int status;
+        pid_t result = waitpid(current->pid, &status, WNOHANG);
+
+        if (result > 0) { // Child process has changed state
+            if (WIFEXITED(status) || WIFSIGNALED(status)) {
+                current->status = TERMINATED;
+            } else if (WIFSTOPPED(status)) {
+                current->status = SUSPENDED;
+            } else if (WIFCONTINUED(status)) {
+                current->status = RUNNING;
+            }
+        }
+
+        if (current->status == TERMINATED) { // Remove terminated processes
+            process* to_delete = current;
+            if (prev == NULL) {
+                *process_list = current->next; // Update head
+            } else {
+                prev->next = current->next;
+            }
+            current = current->next;
+            freeCmdLines(to_delete->cmd);
+            free(to_delete);
+        } else {
+            prev = current;
+            current = current->next;
+        }
+    }
+}
+
+void updateProcessStatus(process* process_list, int pid, int status) {
+    process* current = process_list;
+    while (current != NULL) {
+        if (current->pid == pid) {
+            current->status = status; 
+            return;
+        }
+        current = current->next;  
+    }
+}
 
 //main helper functions: 
 void initializeProcessList(process** process_list) {
@@ -411,19 +646,23 @@ int handleUserInput(char input[], cmdLine** command, int argc, char** argv, proc
 }
 
 void executeCommand(cmdLine* command, process** process_list) {
+    if (strcmp(command->arguments[0], "procs") == 0) {
+        printProcessList(process_list); // Directly print the process list
+        freeCmdLines(command);
+        return; // Do not execute or add to the process list
+    }
+
     if (checkCommand(command)) {
         freeCmdLines(command);
     } else {
-        execute(command);  
-        freeCmdLines(command);  
+        execute(command);
+        freeCmdLines(command);
     }
 }
-
 
 int main(int argc, char **argv) {
     signal(SIGINT, SIG_IGN);
     signal(SIGCHLD, sigchld_handler);  // Set up SIGCHLD handler to reap child processes
-   
     char input[2048];
     cmdLine* command;
     process_list = NULL;  // Declare the process list
@@ -437,6 +676,6 @@ int main(int argc, char **argv) {
         executeCommand(command, &process_list);
         sleep(1);  // Sleep to avoid CPU overload
     }
+    freeProcessList(process_list);
     return 0;
-}
-
+}   
