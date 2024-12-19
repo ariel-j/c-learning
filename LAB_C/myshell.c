@@ -32,6 +32,7 @@
     void freeProcessList(process* process_list);
     void updateProcessStatus(process* process_list, int pid, int status);
     void printProcessList(process** process_list);
+    void checkProcs(cmdLine* command);
 
 // ================ PART 4 ================
 typedef struct history_node {
@@ -366,54 +367,60 @@ void executePipe(cmdLine *pCmdLine) {
     }
 }
 
+
+void runChildProcess(cmdLine *pCmdLine){
+    if(debug){
+        fprintf(stderr, "PID: %d\n", getpid());
+        fprintf(stderr, "Executing command: %s\n", pCmdLine->arguments[0]);
+    }
+
+    if(pCmdLine->inputRedirect){
+        handleInputRedirect(pCmdLine);
+    }
+
+    if(pCmdLine->outputRedirect){
+        handleOutputRedirect(pCmdLine);
+    }
+
+    if(execvp(pCmdLine->arguments[0],pCmdLine->arguments) == -1){
+        perror("execvp error");
+        _exit(1);
+    }
+}
+
+void runParentProcess(cmdLine *pCmdLine, pid_t pid){
+    if (pCmdLine->blocking) { // wait for child process to finish - & was added to so it's blocking.
+        if (debug) {
+            fprintf(stderr, "PID: %d\n", pid);
+            fprintf(stderr, "Waiting for child process to finish\n");
+        }
+        waitpid(pid, NULL, 0);
+    } else {
+        if (debug) {
+            fprintf(stderr, "PID: %d\n", pid);
+            fprintf(stderr, "Running in background\n");
+        }
+    }
+}
+
 void execute(cmdLine *pCmdLine){
     // Check if this is a pipe command
     if (pCmdLine->next) {
         executePipe(pCmdLine);
-        return;
     }
 
     pid_t pid = fork(); 
     if(pid == -1){ 
-        perror("fork error - failed to create new process");
+        perror("failed to create new process");
         exit(1);
     }
 
     if(pid == 0){
-        if(debug){
-            fprintf(stderr, "PID: %d\n", getpid());
-            fprintf(stderr, "Executing command: %s\n", pCmdLine->arguments[0]);
-        }
-
-        if(pCmdLine->inputRedirect){
-            handleInputRedirect(pCmdLine);
-        }
-
-        if(pCmdLine->outputRedirect){
-            handleOutputRedirect(pCmdLine);
-        }
-
-        if(execvp(pCmdLine->arguments[0],pCmdLine->arguments) == -1){
-            perror("execvp error");
-            _exit(1);
-        }
+       runChildProcess(pCmdLine);
         
     } else {
         addProcess(&process_list, pCmdLine, pid);  // Add to the process list
-        
-
-        if (pCmdLine->blocking) { 
-            if (debug) {
-                fprintf(stderr, "PID: %d\n", pid);
-                fprintf(stderr, "Waiting for child process to finish\n");
-            }
-            waitpid(pid, NULL, 0);
-        } else {
-            if (debug) {
-                fprintf(stderr, "PID: %d\n", pid);
-                fprintf(stderr, "Running in background\n");
-            }
-        }
+        runParentProcess(pCmdLine, pid);
     }
 }
 
@@ -490,6 +497,8 @@ int checkCommand(cmdLine* command){
     if(strcmp(command->arguments[0], "stop") == 0){checkStop(command); return 1;}
     if(strcmp(command->arguments[0], "wake") == 0){checkWake(command); return 1;}
     if(strcmp(command->arguments[0], "term") == 0){checkTerm(command); return 1;}
+    if(strcmp(command->arguments[0], "procs") == 0){checkProcs(command); return 1;} //Part3A
+
     return 0;
 }
 
@@ -500,13 +509,21 @@ void checkProcs(cmdLine* command){
 //process list functions
 void addProcess(process** process_list, cmdLine* cmd, pid_t pid) {
     process* new_process = (process*) malloc(sizeof(process));
-    // Initialize the new process fields
-    new_process->cmd = cmd;  // Parsed command line
-    new_process->pid = pid;  // Process ID
-    new_process->status = RUNNING;  // Initially, the process is running
-    new_process->next = *process_list;  // New process points to the current first node
-    // Update the process list to point to the new process
+    new_process->cmd = parseCmdLines(cmd->arguments[0]);
+    if (new_process->cmd == NULL) {
+        free(new_process);
+        return;
+    }
+    // Replacing the cmdline with newString
+    for (int i = 1; i < cmd->argCount; i++) {
+        replaceCmdArg(new_process->cmd, i, cmd->arguments[i]);
+    }
+    //printf("%s\t,%s\n","the argument is",new_process->cmd->arguments[0]);
+    new_process->pid = pid;
+    new_process->status = RUNNING;
+    new_process->next = *process_list;
     *process_list = new_process;
+
     if (debug) {
         fprintf(stderr, "DEBUG: Added process PID=%d, Command=%s\n", pid, cmd->arguments[0]);
     }
@@ -573,24 +590,26 @@ void freeProcessList(process* process_list) {
     }
 }
 
+void updateProcessStateChanged(int status,process* curr){
+    if (WIFSTOPPED(status)) {
+        curr->status = SUSPENDED;
+    } else if (WIFCONTINUED(status)) {
+        curr->status = RUNNING;
+    } else if (WIFEXITED(status) || WIFSIGNALED(status)) {
+        curr->status = TERMINATED;
+    }
+}
+
 void updateProcessList(process **process_list) {
+    if(!process_list || !*process_list) return;
     process* current = *process_list;
     process* prev = NULL;
-
-    while (current != NULL) {
+    while (current) {
         int status;
         pid_t result = waitpid(current->pid, &status, WNOHANG);
-
-        if (result > 0) { // Child process has changed state
-            if (WIFEXITED(status) || WIFSIGNALED(status)) {
-                current->status = TERMINATED;
-            } else if (WIFSTOPPED(status)) {
-                current->status = SUSPENDED;
-            } else if (WIFCONTINUED(status)) {
-                current->status = RUNNING;
-            }
+        if (result > 0) { // process has changed state
+           updateProcessStateChanged(status,current);
         }
-
         if (current->status == TERMINATED) { // Remove terminated processes
             process* to_delete = current;
             if (prev == NULL) {
@@ -620,10 +639,6 @@ void updateProcessStatus(process* process_list, int pid, int status) {
 }
 
 //main helper functions: 
-void initializeProcessList(process** process_list) {
-    *process_list = NULL;  // Initialize an empty process list
-}
-
 void handleProcsCommand(process* process_list) {
     printProcessList(&process_list);  // Print the list of processes
 }
@@ -633,26 +648,13 @@ int handleUserInput(char input[], cmdLine** command, int argc, char** argv, proc
     isDebugMode(argc, argv);     
     if(input[0] == '\n') return 0;  // Skip empty input
     if (check_history_command(input, history_global)) return 0;
-        add_to_history(history_global, input);
+    add_to_history(history_global, input);
     *command = parseInput(input);
     if (*command == NULL) return 0;  // Skip null commands
-
-    if (strcmp((*command)->arguments[0], "procs") == 0) {
-        handleProcsCommand(*process_list);
-        freeCmdLines(*command);
-        return 1;  
-    }
-
     return 0;  
 }
 
 void executeCommand(cmdLine* command, process** process_list) {
-    if (strcmp(command->arguments[0], "procs") == 0) {
-        printProcessList(process_list); // Directly print the process list
-        freeCmdLines(command);
-        return; // Do not execute or add to the process list
-    }
-
     if (checkCommand(command)) {
         freeCmdLines(command);
     } else {
@@ -663,11 +665,10 @@ void executeCommand(cmdLine* command, process** process_list) {
 
 int main(int argc, char **argv) {
     signal(SIGINT, SIG_IGN);
-    signal(SIGCHLD, sigchld_handler);  // Set up SIGCHLD handler to reap child processes
     char input[2048];
     cmdLine* command;
-    process_list = NULL;  // Declare the process list
-    initializeProcessList(&process_list);  
+    history_global = init_history();
+    process_list = NULL;  
 
     while (1) {
         displayPrompt();
