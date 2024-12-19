@@ -632,7 +632,8 @@ int handleUserInput(char input[], cmdLine** command, int argc, char** argv, proc
     readUserInput(input, 2048);  
     isDebugMode(argc, argv);     
     if(input[0] == '\n') return 0;  // Skip empty input
-
+    if (check_history_command(input, history_global)) return 0;
+        add_to_history(history_global, input);
     *command = parseInput(input);
     if (*command == NULL) return 0;  // Skip null commands
 
