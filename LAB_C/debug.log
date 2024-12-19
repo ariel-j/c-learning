@@ -1,0 +1,15 @@
+(parent_process>forking…)
+(child1>redirecting stdout to the write end of the pipe…)
+(child1>going to execute cmd: ls -l)
+(parent_process>created process with id: 256250)
+(parent_process>closing the write end of the pipe…)
+(parent_process>forking…)
+(parent_process>created process with id: 256251)
+(parent_process>closing the read end of the pipe…)
+(parent_process>waiting for child processes to terminate…)
+(child2>redirecting stdin to the read end of the pipe…)
+(child2>going to execute cmd: tail -n 2)
+(parent_process>exiting…)
+
+
+./mypipeline > output.txt 2> debug.log
