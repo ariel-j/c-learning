@@ -1,8 +1,9 @@
 section .data
-    input_fd dd 0       ; File descriptor for input (0 = stdin by default)
-    output_fd dd 1      ; File descriptor for output (1 = stdout by default)
+    input_fd db 0       ; File descriptor for input (0 = stdin by default) - buffer
+    newLine db 10       ; new Line character (ascii 10)
+    output_fd db 1      ; File descriptor for output (1 = stdout by default)
     error_msg db "Error opening file", 10
-    error_len equ $ - error_msg
+    error_len equ $ - error_msg  ; $ = current location. err msg = starting location
 
 section .bss
     buffer resb 1       ; Buffer for reading characters
