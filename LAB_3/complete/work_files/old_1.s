@@ -7,10 +7,10 @@ section .data
 
 section .bss
     buffer resb 1       ; Buffer for reading characters
-
+    
 section .text
-global _start
-global main            ; Make main visible to the linker
+    global _start
+    global main            ; Make main visible to the linker
 
 ; System call numbers
 SYS_READ equ 3
