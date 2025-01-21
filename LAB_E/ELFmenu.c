@@ -110,18 +110,6 @@ void toggle_debug_mode() {
     printf("Debug mode %s\n", debug_mode ? "ON" : "OFF");
 }
 
-// Unmaps memory region mapped by mmap and closes the file descriptor to ensure proper resource deallocation.
-void unmap_and_close(ElfFile *elf_file) {
-    if (elf_file->map_start) {
-        munmap(elf_file->map_start, elf_file->file_size);  // Unmaps the memory region.
-        elf_file->map_start = NULL;
-    }
-    if (elf_file->fd >= 0) {
-        close(elf_file->fd);  // Closes the file descriptor.
-        elf_file->fd = -1;
-    }
-}
-
 // ============================= Menu Functions ==============================
 
 // ============================= 0 =============================
@@ -184,6 +172,7 @@ void examine_elf_file() {
 }
 
 // ============================= 1 =============================
+
 void print_section_names() {
     if (file_count == 0) {
         printf("No ELF files loaded\n");
@@ -242,9 +231,104 @@ void print_section_names() {
     }
 }
 
-void print_symbols() {
-    printf("Not implemented yet\n");
+// ============================= 2 =============================
+// Find symbol table section
+Elf32_Shdr* find_symbol_table(Elf32_Shdr* section_headers, int num_sections) {
+    for (int i = 0; i < num_sections; i++) {
+        if (section_headers[i].sh_type == SHT_SYMTAB) {
+            return &section_headers[i];
+        }
+    }
+    return NULL;
 }
+
+// Get section name, handling special cases
+const char* get_section_name(Elf32_Half st_shndx, Elf32_Half num_sections, 
+                           const char* shstrtab_data, Elf32_Shdr* section_headers) {
+    if (st_shndx == SHN_UNDEF || 
+        st_shndx >= num_sections || 
+        st_shndx == SHN_ABS ||
+        st_shndx == SHN_COMMON) {
+        return "UND";
+    }
+    return shstrtab_data + section_headers[st_shndx].sh_name;
+}
+
+// Print debug information
+void print_symbol_debug_info(int file_idx, Elf32_Shdr* symtab) {
+    fprintf(stderr, "\nDebug Info for File %d:\n", file_idx + 1);
+    fprintf(stderr, "Symbol table size: %d bytes\n", symtab->sh_size);
+    fprintf(stderr, "Number of symbols: %d\n", symtab->sh_size / sizeof(Elf32_Sym));
+    fprintf(stderr, "Symbol table offset: 0x%x\n", symtab->sh_offset);
+}
+
+// Print a single symbol entry
+void print_symbol_entry(int index, Elf32_Sym* sym, const char* symbol_name, const char* section_name) {
+    printf("[%2d] %08x %3d %-16s %s\n",
+           index,
+           sym->st_value,
+           sym->st_shndx,
+           section_name,
+           symbol_name[0] ? symbol_name : "");
+}
+
+// Process symbols for a single file
+void process_file_symbols(ElfFile* current_file, int file_idx) {
+    Elf32_Ehdr* header = current_file->elf_header;
+    Elf32_Shdr* section_headers = (Elf32_Shdr*)((char*)current_file->map_start + header->e_shoff);
+    
+    // Find symbol table
+    Elf32_Shdr* symtab = find_symbol_table(section_headers, header->e_shnum);
+    if (!symtab) {
+        printf("File %d: No symbol table found\n", file_idx + 1);
+        return;
+    }
+
+    // Get string tables
+    Elf32_Shdr* strtab = &section_headers[symtab->sh_link];
+    if (strtab->sh_type != SHT_STRTAB) {
+        printf("File %d: Invalid string table\n", file_idx + 1);
+        return;
+    }
+
+    Elf32_Shdr* shstrtab = &section_headers[header->e_shstrndx];
+    const char* shstrtab_data = (char*)current_file->map_start + shstrtab->sh_offset;
+    const char* strtab_data = (char*)current_file->map_start + strtab->sh_offset;
+    
+    // Get symbol table entries
+    Elf32_Sym* symbols = (Elf32_Sym*)((char*)current_file->map_start + symtab->sh_offset);
+    int symbol_count = symtab->sh_size / sizeof(Elf32_Sym);
+
+    if (debug_mode) {
+        print_symbol_debug_info(file_idx, symtab);
+    }
+
+    printf("\nFile %d:\n", file_idx + 1);
+
+    for (int i = 0; i < symbol_count; i++) {
+        Elf32_Sym* sym = &symbols[i];
+        const char* symbol_name = sym->st_name ? strtab_data + sym->st_name : "";
+        const char* section_name = get_section_name(sym->st_shndx, header->e_shnum, 
+                                                  shstrtab_data, section_headers);
+        
+        print_symbol_entry(i, sym, symbol_name, section_name);
+    }
+}
+
+// Main print symbols function
+void print_symbols() {
+    if (file_count == 0) {
+        printf("No ELF files loaded\n");
+        return;
+    }
+
+    for (int file_idx = 0; file_idx < file_count; file_idx++) {
+        process_file_symbols(&elf_files[file_idx], file_idx);
+    }
+}
+
+
+//==================================== 3 ======================================
 
 void check_files_for_merge() {
     printf("Not implemented yet\n");
@@ -253,6 +337,24 @@ void check_files_for_merge() {
 void merge_elf_files() {
     printf("Not implemented yet\n");
 }
+
+//============================= close ===========================================
+
+// Unmaps memory region mapped by mmap and closes the file descriptor to ensure proper resource deallocation.
+void unmap_and_close(ElfFile *elf_file) {
+    if (elf_file->map_start) {
+        munmap(elf_file->map_start, elf_file->file_size);  // Unmaps the memory region.
+        elf_file->map_start = NULL;
+    }
+    if (elf_file->fd >= 0) {
+        close(elf_file->fd);  // Closes the file descriptor.
+        elf_file->fd = -1;
+    }
+}
+
+
+
+//====================================================================================================
 
 // Unmaps any resources and exits the program.
 void quit() {

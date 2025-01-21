@@ -1,0 +1,79 @@
+
+Choose action:
+0-Toggle Debug Mode
+1-Examine ELF File
+2-Print Section Names
+3-Print Symbols
+4-Check Files for Merge
+5-Merge ELF Files
+6-Quit
+Option: Enter ELF file name: Magic: ELF
+Data: Little Endian
+Entry point: 0x0
+Section header table offset: 0x2b0
+Number of section headers: 14
+Size of section headers: 40
+Program header table offset: 0x0
+Number of program headers: 0
+Size of program headers: 0
+
+Choose action:
+0-Toggle Debug Mode
+1-Examine ELF File
+2-Print Section Names
+3-Print Symbols
+4-Check Files for Merge
+5-Merge ELF Files
+6-Quit
+Option: Enter ELF file name: Magic: ELF
+Data: Little Endian
+Entry point: 0x0
+Section header table offset: 0x2b0
+Number of section headers: 14
+Size of section headers: 40
+Program header table offset: 0x0
+Number of program headers: 0
+Size of program headers: 0
+
+Choose action:
+0-Toggle Debug Mode
+1-Examine ELF File
+2-Print Section Names
+3-Print Symbols
+4-Check Files for Merge
+5-Merge ELF Files
+6-Quit
+Option: 
+File 1 Symbols:
+[Nr] Value     Ndx Section Name       Symbol Name
+[ 0] 00000000    0 UND              
+[ 1] 00000000  65521 UND              test.c
+[ 2] 00000000    2 .text            
+[ 3] 00000000    6 .text.__x86.get_pc_thunk.ax 
+[ 4] 00000000    4 .data            global_var
+[ 5] 00000000    2 .text            test_function
+[ 6] 00000000    6 .text.__x86.get_pc_thunk.ax __x86.get_pc_thunk.ax
+[ 7] 00000000    0 UND              _GLOBAL_OFFSET_TABLE_
+[ 8] 0000001a    2 .text            main
+
+File 2 Symbols:
+[Nr] Value     Ndx Section Name       Symbol Name
+[ 0] 00000000    0 UND              
+[ 1] 00000000  65521 UND              test.c
+[ 2] 00000000    2 .text            
+[ 3] 00000000    6 .text.__x86.get_pc_thunk.ax 
+[ 4] 00000000    4 .data            global_var
+[ 5] 00000000    2 .text            test_function
+[ 6] 00000000    6 .text.__x86.get_pc_thunk.ax __x86.get_pc_thunk.ax
+[ 7] 00000000    0 UND              _GLOBAL_OFFSET_TABLE_
+[ 8] 0000001a    2 .text            main
+
+Choose action:
+0-Toggle Debug Mode
+1-Examine ELF File
+2-Print Section Names
+3-Print Symbols
+4-Check Files for Merge
+5-Merge ELF Files
+6-Quit
+Option: Exiting program.
