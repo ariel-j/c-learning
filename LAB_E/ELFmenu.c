@@ -172,7 +172,7 @@ void examine_elf_file() {
     file_count++;
 
     // Print ELF header details.
-    printf("Magic: %c%c%c\n", elf_header->e_ident[EI_MAG1], elf_header->e_ident[EI_MAG2], elf_header->e_ident[EI_MAG3]);
+     printf("Magic: %c%c%c\n", elf_header->e_ident[EI_MAG1], elf_header->e_ident[EI_MAG2], elf_header->e_ident[EI_MAG3]);
     printf("Data: %s\n", elf_header->e_ident[EI_DATA] == ELFDATA2LSB ? "Little Endian" : "Big Endian");
     printf("Entry point: 0x%x\n", elf_header->e_entry);
     printf("Section header table offset: 0x%x\n", elf_header->e_shoff);
@@ -183,9 +183,63 @@ void examine_elf_file() {
     printf("Size of program headers: %d\n", elf_header->e_phentsize);
 }
 
-
+// ============================= 1 =============================
 void print_section_names() {
-    printf("Not implemented yet\n");
+    if (file_count == 0) {
+        printf("No ELF files loaded\n");
+        return;
+    }
+
+    for (int file_idx = 0; file_idx < file_count; file_idx++) {
+        ElfFile *current_file = &elf_files[file_idx];
+        Elf32_Ehdr *header = current_file->elf_header;
+        
+        // Get section header table
+        Elf32_Shdr *section_headers = (Elf32_Shdr *)((char *)current_file->map_start + header->e_shoff);
+        
+        // Debug print for shstrndx before processing
+        if (debug_mode) {
+            fprintf(stderr, "\nDebug Info for File %d:\n", file_idx + 1);
+            fprintf(stderr, "Section header string table index (shstrndx): %d\n", header->e_shstrndx);
+            fprintf(stderr, "Section header table offset: 0x%x\n", header->e_shoff);
+        }
+
+        // Get string table section header
+        Elf32_Shdr *str_tab = &section_headers[header->e_shstrndx];
+        
+        if (debug_mode) {
+            fprintf(stderr, "String table offset: 0x%x\n", str_tab->sh_offset);
+            fprintf(stderr, "String table size: %d bytes\n", str_tab->sh_size);
+        }
+
+        // Get actual string table
+        const char *str_tab_start = (const char *)current_file->map_start + str_tab->sh_offset;
+
+        printf("\nFile %d:\n", file_idx + 1);
+        printf("[Nr] %-17s %-10s %-10s %-10s %s\n", 
+               "Name", "Addr", "Off", "Size", "Type");
+
+        for (int i = 0; i < header->e_shnum; i++) {
+            Elf32_Shdr *section = &section_headers[i];
+            const char *name = str_tab_start + section->sh_name;
+
+            if (debug_mode) {
+                fprintf(stderr, "\nDebug: Section %d:\n", i);
+                fprintf(stderr, "  Name offset in string table: %d\n", section->sh_name);
+                fprintf(stderr, "  Section offset in file: 0x%x\n", section->sh_offset);
+                fprintf(stderr, "  Section size: %d bytes\n", section->sh_size);
+            }
+
+            printf("[%2d] %-17s %08x  %08x  %08x  %d\n", 
+                   i,
+                   name,
+                   section->sh_addr,
+                   section->sh_offset,
+                   section->sh_size,
+                   section->sh_type
+            );
+        }
+    }
 }
 
 void print_symbols() {
