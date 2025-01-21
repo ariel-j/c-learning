@@ -328,11 +328,171 @@ void print_symbols() {
 }
 
 
-//==================================== 3 ======================================
+//==================================== 3.1 ==============================
 
-void check_files_for_merge() {
-    printf("Not implemented yet\n");
+// Validates basic requirements for merging
+int validate_merge_requirements() {
+    if (file_count != 2) {
+        printf("Error: Exactly two ELF files must be opened for merge check\n");
+        return 0;
+    }
+
+    // Check symbol table count for each file
+    for (int i = 0; i < 2; i++) {
+        ElfFile* curr_file = &elf_files[i];
+        Elf32_Shdr* section_headers = (Elf32_Shdr*)((char*)curr_file->map_start + 
+                                                   curr_file->elf_header->e_shoff);
+        
+        int symtab_count = 0;
+        for (int j = 0; j < curr_file->elf_header->e_shnum; j++) {
+            if (section_headers[j].sh_type == SHT_SYMTAB) {
+                symtab_count++;
+            }
+        }
+        
+        if (symtab_count != 1) {
+            printf("Error: Feature not supported - File %d has %d symbol tables\n", 
+                   i + 1, symtab_count);
+            return 0;
+        }
+    }
+    return 1;
 }
+
+// Finds the symbol table section in an ELF file
+Elf32_Shdr* find_symbol_table_section(ElfFile* elf_file) {
+    Elf32_Shdr* sections = (Elf32_Shdr*)((char*)elf_file->map_start + 
+                                        elf_file->elf_header->e_shoff);
+    
+    for (int i = 0; i < elf_file->elf_header->e_shnum; i++) {
+        if (sections[i].sh_type == SHT_SYMTAB) {
+            return &sections[i];
+        }
+    }
+    return NULL;
+}
+
+// Finds a symbol in a symbol table
+Elf32_Sym* find_symbol_in_table(const char* symbol_name, Elf32_Sym* symtab, 
+                               int sym_count, const char* strtab) {
+    for (int i = 1; i < sym_count; i++) { // Skip dummy symbol
+        const char* curr_name = strtab + symtab[i].st_name;
+        if (strcmp(symbol_name, curr_name) == 0) {
+            return &symtab[i];
+        }
+    }
+    return NULL;
+}
+
+// Checks for symbol conflicts between two files
+void check_symbol_conflicts(ElfFile* curr_file, ElfFile* other_file) {
+    // Get sections for current file
+    Elf32_Shdr* curr_sections = (Elf32_Shdr*)((char*)curr_file->map_start + 
+                                             curr_file->elf_header->e_shoff);
+    
+    // Find symbol table section for current file
+    Elf32_Shdr* curr_symtab_section = find_symbol_table_section(curr_file);
+    if (!curr_symtab_section) {
+        printf("Error: Could not find symbol table\n");
+        return;
+    }
+
+    // Get string table for current file
+    Elf32_Shdr* curr_strtab = &curr_sections[curr_symtab_section->sh_link];
+    const char* curr_strtab_data = (char*)curr_file->map_start + curr_strtab->sh_offset;
+    
+    // Get symbols from current file
+    Elf32_Sym* curr_symbols = (Elf32_Sym*)((char*)curr_file->map_start + 
+                                          curr_symtab_section->sh_offset);
+    int curr_sym_count = curr_symtab_section->sh_size / sizeof(Elf32_Sym);
+
+    // Get sections for other file
+    Elf32_Shdr* other_sections = (Elf32_Shdr*)((char*)other_file->map_start + 
+                                              other_file->elf_header->e_shoff);
+    
+    // Find symbol table section for other file
+    Elf32_Shdr* other_symtab_section = find_symbol_table_section(other_file);
+    if (!other_symtab_section) {
+        printf("Error: Could not find symbol table in other file\n");
+        return;
+    }
+
+    // Get string table for other file
+    Elf32_Shdr* other_strtab = &other_sections[other_symtab_section->sh_link];
+    const char* other_strtab_data = (char*)other_file->map_start + other_strtab->sh_offset;
+    
+    // Get symbols from other file
+    Elf32_Sym* other_symbols = (Elf32_Sym*)((char*)other_file->map_start + 
+                                           other_symtab_section->sh_offset);
+    int other_sym_count = other_symtab_section->sh_size / sizeof(Elf32_Sym);
+
+    if (debug_mode) {
+        printf("\nChecking symbols between files\n");
+        printf("Current file symbol count: %d\n", curr_sym_count);
+        printf("Other file symbol count: %d\n", other_sym_count);
+    }
+
+    // Check each symbol in current file
+    for (int i = 1; i < curr_sym_count; i++) { // Skip dummy symbol
+        Elf32_Sym* curr_sym = &curr_symbols[i];
+        
+        // Skip symbols with no name or empty name
+        if (curr_sym->st_name == 0) {
+            continue;
+        }
+        
+        const char* sym_name = curr_strtab_data + curr_sym->st_name;
+        if (sym_name[0] == '\0') {
+            continue;
+        }
+        
+        if (debug_mode) {
+            printf("Checking symbol: %s (index: %d, section: %d)\n", 
+                   sym_name, i, curr_sym->st_shndx);
+        }
+
+        // Filter out special sections
+        if (curr_sym->st_shndx == SHN_ABS || curr_sym->st_shndx == SHN_COMMON) {
+            continue;
+        }
+
+        if (curr_sym->st_shndx == SHN_UNDEF) {
+            // Symbol is undefined in current file, check other file
+            Elf32_Sym* other_sym = find_symbol_in_table(sym_name, other_symbols, 
+                                                      other_sym_count, other_strtab_data);
+            
+            if (!other_sym || other_sym->st_shndx == SHN_UNDEF) {
+                printf("Symbol '%s' undefined\n", sym_name);
+            }
+        } else {
+            // Symbol is defined in current file, check for multiple definitions
+            Elf32_Sym* other_sym = find_symbol_in_table(sym_name, other_symbols, 
+                                                      other_sym_count, other_strtab_data);
+            
+            if (other_sym && other_sym->st_shndx != SHN_UNDEF) {
+                printf("Symbol '%s' multiply defined\n", sym_name);
+            }
+        }
+    }
+}
+
+// Main function for checking files for merge
+void check_files_for_merge() {
+    if (!validate_merge_requirements()) {
+        return;
+    }
+
+    if (debug_mode) {
+        printf("\nDebug: Starting symbol conflict check\n");
+    }
+
+    // Check symbols in both directions
+    check_symbol_conflicts(&elf_files[0], &elf_files[1]);
+    check_symbol_conflicts(&elf_files[1], &elf_files[0]);
+}
+
+
+//==================================== 3.2 ==============================
 
 void merge_elf_files() {
     printf("Not implemented yet\n");

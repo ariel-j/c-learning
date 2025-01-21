@@ -1,12 +1,12 @@
-all: ELFmenu 
+all: myELF 
 
-ELFmenu: ELFmenu.o
-	gcc	-g	-m32	-Wall	-o	ELFmenu	ELFmenu.o
+myELF: myELF.o
+	gcc	-g	-m32	-Wall	-o	myELF	myELF.o
 
-ELFmenu.o: ELFmenu.c
-	gcc	-g	-m32	-Wall	-c	-o	ELFmenu.o	ELFmenu.c 
+myELF.o: myELF.c
+	gcc	-g	-m32	-Wall	-c	-o	myELF.o	myELF.c 
 
 .PHONY: clean
 
 clean:
-	rm -f *.o ELFmenu 
+	rm -f *.o myELF 
