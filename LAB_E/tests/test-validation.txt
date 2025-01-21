@@ -1,0 +1,39 @@
+#include <assert.h>
+
+// Test function for find_section_by_type
+void test_find_section_by_type() {
+    // Setup test ELF file structure
+    ElfFile test_file;
+    // ... initialize test_file with known data
+
+    Elf32_Shdr* section_headers = (Elf32_Shdr*)((char*)test_file.map_start + test_file.elf_header->e_shoff);
+    
+    // Test cases
+    Elf32_Shdr* symtab = find_section_by_type(section_headers, 
+                                             test_file.elf_header->e_shnum, 
+                                             SHT_SYMTAB, 
+                                             test_file.elf_header->e_shstrndx);
+    assert(symtab != NULL);
+    assert(symtab->sh_type == SHT_SYMTAB);
+}
+
+// Test function for process_file_symbols
+void test_process_file_symbols() {
+    ElfFile test_file;
+    // ... initialize test_file with known data
+    
+    // Test with valid file
+    process_file_symbols(&test_file, 0);
+    
+    // Test with file without symbol table
+    ElfFile test_file_no_symbols;
+    // ... initialize with file lacking symbol table
+    process_file_symbols(&test_file_no_symbols, 1);
+}
+
+// Main test function
+void run_all_tests() {
+    test_find_section_by_type();
+    test_process_file_symbols();
+    printf("All tests passed!\n");
+}
